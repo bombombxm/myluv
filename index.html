@@ -1,246 +1,188 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>HNY26 For You</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            overflow: hidden; /* ป้องกัน Scrollbar */
-            font-family: 'Arial', sans-serif;
-            touch-action: none; /* ปิดการทำงานสัมผัสของ Browser เพื่อให้จิ้มจุดพลุได้ */
-        }
-        canvas {
-            display: block;
-            cursor: crosshair;
-        }
-        #message {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            opacity: 0;
-            transition: opacity 3s ease-in;
-            z-index: 10;
-            pointer-events: none;
-            width: 90%; /* ให้ข้อความไม่ล้นจอในมือถือ */
-        }
-        h1 {
-            color: #fff;
-            font-size: 15vw; /* ปรับขนาดตามความกว้างจอ */
-            margin: 0;
-            line-height: 1.1;
-            text-transform: uppercase;
-            text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de, 0 0 40px #ff00de;
-        }
-        p {
-            color: #ffd700;
-            font-size: 8vw; /* ปรับขนาดตามความกว้างจอ */
-            margin-top: 20px;
-            font-weight: bold;
-            text-shadow: 0 0 5px #ffd700, 0 0 10px #ffd700;
-        }
-        
-        /* ถ้าเป็น iPad หรือจอใหญ่ ให้จำกัดขนาดตัวอักษรไม่ให้ใหญ่เกินไป */
-        @media (min-width: 768px) {
-            h1 { font-size: 5rem; }
-            p { font-size: 2.5rem; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌸 Sakura Hanabi</title>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    background: black;
+    overflow: hidden;
+    height: 100%;
+}
+
+canvas {
+    display: block;
+}
+
+/* Orientation warning */
+#rotateWarning {
+    position: fixed;
+    inset: 0;
+    background: black;
+    color: white;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 10;
+}
+</style>
 </head>
 <body>
-    <script>
-    window.requestAnimFrame = (function() {
-        return window.requestAnimationFrame ||
-            window.webkitRequestAnimationFrame ||
-            window.mozRequestAnimationFrame ||
-            function(callback) {
-                window.setTimeout(callback, 1000 / 60);
-            };
-    })();
-    
-    var canvas = document.getElementById('canvas'),
-        ctx = canvas.getContext('2d'),
-        cw = window.innerWidth,
-        ch = window.innerHeight,
-        fireworks = [],
-        particles = [],
-        hue = 120,
-        timerTotal = 40,
-        timerTick = 0;
-    
-    canvas.width = cw;
-    canvas.height = ch;
-    
-    // Settings
-    var stopFireworks = false;
-    var duration = 60000; // 🔥 60 วินาที
-    
-    setTimeout(function() {
-        stopFireworks = true;
-    }, duration);
-    
-    function random(min, max) {
-        return Math.random() * (max - min) + min;
+
+<div id="rotateWarning">📱 กรุณาหมุนจอเป็นแนวตั้ง<br>เพื่อเริ่มแสดงพลุ</div>
+<canvas id="canvas"></canvas>
+
+<audio id="boomSound" preload="auto">
+    <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2b5c8b88f4.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const warning = document.getElementById("rotateWarning");
+const boom = document.getElementById("boomSound");
+
+let W, H;
+let petals = [];
+let sparkles = [];
+let lastFirework = 0;
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* Orientation check */
+function checkOrientation() {
+    if (window.innerHeight > window.innerWidth) {
+        warning.style.display = "none";
+    } else {
+        warning.style.display = "flex";
     }
-    
-    function calculateDistance(p1x, p1y, p2x, p2y) {
-        return Math.sqrt(Math.pow(p1x - p2x, 2) + Math.pow(p1y - p2y, 2));
-    }
-    
-    function Firework(sx, sy, tx, ty) {
-        this.x = sx;
-        this.y = sy;
-        this.sx = sx;
-        this.sy = sy;
-        this.tx = tx;
-        this.ty = ty;
-        this.distanceToTarget = calculateDistance(sx, sy, tx, ty);
-        this.distanceTraveled = 0;
-        this.coordinates = [];
-        this.coordinateCount = 3;
-        while (this.coordinateCount--) {
-            this.coordinates.push([this.x, this.y]);
-        }
-        this.angle = Math.atan2(ty - sy, tx - sx);
-        this.speed = 2.4;          // 🔥 ใหญ่ขึ้น
-        this.acceleration = 1.06;  // 🔥 แรงขึ้นนิด
-        this.brightness = random(55, 75);
-    }
-    
-    Firework.prototype.update = function(index) {
-        this.coordinates.pop();
-        this.coordinates.unshift([this.x, this.y]);
-    
-        this.speed *= this.acceleration;
-        var vx = Math.cos(this.angle) * this.speed,
-            vy = Math.sin(this.angle) * this.speed;
-    
-        this.distanceTraveled = calculateDistance(this.sx, this.sy, this.x + vx, this.y + vy);
-    
-        if (this.distanceTraveled >= this.distanceToTarget) {
-            createParticles(this.tx, this.ty);
-            fireworks.splice(index, 1);
-        } else {
-            this.x += vx;
-            this.y += vy;
-        }
-    };
-    
-    Firework.prototype.draw = function() {
-        ctx.beginPath();
-        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
-        ctx.lineTo(this.x, this.y);
-        ctx.strokeStyle = 'hsl(' + hue + ', 100%, ' + this.brightness + '%)';
-        ctx.lineWidth = 2; // 🔥 เส้นหนาขึ้น
-        ctx.stroke();
-    };
-    
-    function Particle(x, y) {
+}
+window.addEventListener("resize", checkOrientation);
+checkOrientation();
+
+/* Utility */
+const rand = (a,b)=>Math.random()*(b-a)+a;
+
+/* Sakura petal */
+class Petal {
+    constructor(x,y,color,angle,speed) {
         this.x = x;
         this.y = y;
-        this.coordinates = [];
-        this.coordinateCount = 5;
-        while (this.coordinateCount--) {
-            this.coordinates.push([this.x, this.y]);
-        }
-        this.angle = random(0, Math.PI * 2);
-        this.speed = random(2, 14); // 🔥 ใหญ่ขึ้น
-        this.friction = 0.94;
-        this.gravity = 1;
-        this.hue = random(hue - 40, hue + 40);
-        this.brightness = random(60, 85);
-        this.alpha = 1;
-        this.decay = random(0.012, 0.025);
+        this.angle = angle;
+        this.speed = speed;
+        this.life = rand(60,100);
+        this.size = rand(6,10);
+        this.color = color;
+        this.rotation = rand(0,Math.PI*2);
     }
-    
-    Particle.prototype.update = function(index) {
-        this.coordinates.pop();
-        this.coordinates.unshift([this.x, this.y]);
-    
-        this.speed *= this.friction;
-        this.x += Math.cos(this.angle) * this.speed;
-        this.y += Math.sin(this.angle) * this.speed + this.gravity;
-        this.alpha -= this.decay;
-    
-        if (this.alpha <= this.decay) {
-            particles.splice(index, 1);
-        }
-    };
-    
-    Particle.prototype.draw = function() {
+    draw() {
+        ctx.save();
+        ctx.translate(this.x,this.y);
+        ctx.rotate(this.rotation);
+        ctx.globalAlpha = this.life/100;
+        ctx.fillStyle = this.color;
         ctx.beginPath();
-        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
-        ctx.lineTo(this.x, this.y);
-        ctx.strokeStyle = 'hsla(' + this.hue + ',100%,' + this.brightness + '%,' + this.alpha + ')';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    };
-    
-    function createParticles(x, y) {
-        var particleCount = 50; // 🔥 มากขึ้น
-        while (particleCount--) {
-            particles.push(new Particle(x, y));
+        ctx.moveTo(0,-this.size);
+        ctx.quadraticCurveTo(this.size,this.size,0,this.size*1.4);
+        ctx.quadraticCurveTo(-this.size,this.size,0,-this.size);
+        ctx.fill();
+        ctx.restore();
+    }
+    update() {
+        this.x += Math.cos(this.angle)*this.speed;
+        this.y += Math.sin(this.angle)*this.speed;
+        this.y += 0.3;
+        this.rotation += 0.05;
+        this.life--;
+    }
+}
+
+/* Sparkle tail */
+class Sparkle {
+    constructor(x,y,color) {
+        this.x=x;
+        this.y=y;
+        this.vx=rand(-1.5,1.5);
+        this.vy=rand(-1.5,1.5);
+        this.life=30;
+        this.color=color;
+    }
+    draw() {
+        ctx.globalAlpha=this.life/30;
+        ctx.fillStyle=this.color;
+        ctx.fillRect(this.x,this.y,2,2);
+    }
+    update() {
+        this.x+=this.vx;
+        this.y+=this.vy;
+        this.life--;
+    }
+}
+
+/* Firework */
+function launchFirework() {
+    if (warning.style.display !== "none") return;
+
+    const cx = rand(W*0.2,W*0.8);
+    const cy = rand(H*0.2,H*0.4);
+    const maxRadius = Math.min(W,H)*0.6;
+
+    boom.currentTime = 0;
+    boom.play();
+
+    const colors = [
+        "#ff9ecf","#ffd1dc","#ffffff",
+        "#ff6fa5","#ffcce6"
+    ];
+
+    const layers = 3;
+    for (let l=0;l<layers;l++) {
+        const count = 80;
+        for (let i=0;i<count;i++) {
+            const angle = (Math.PI*2/count)*i;
+            const speed = rand(2,4)+(l*0.8);
+            const color = colors[Math.floor(Math.random()*colors.length)];
+            petals.push(new Petal(cx,cy,color,angle,speed));
         }
     }
-    
-    function loop() {
-        requestAnimFrame(loop);
-        hue += 0.5;
-    
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.globalCompositeOperation = 'lighter';
-    
-        var i = fireworks.length;
-        while (i--) {
-            fireworks[i].draw();
-            fireworks[i].update(i);
-        }
-    
-        i = particles.length;
-        while (i--) {
-            particles[i].draw();
-            particles[i].update(i);
-        }
-    
-        if (!stopFireworks) {
-            if (timerTick >= timerTotal) {
-                fireworks.push(
-                    new Firework(cw / 2, ch, random(0, cw), random(0, ch * 0.6))
-                );
-                timerTick = 0;
-            } else {
-                timerTick++;
-            }
-        }
+
+    for (let i=0;i<120;i++) {
+        sparkles.push(new Sparkle(cx,cy,"#fff"));
     }
-    
-    // ยิงด้วย mouse / touch
-    canvas.addEventListener('mousedown', function(e) {
-        fireworks.push(new Firework(cw / 2, ch, e.pageX, e.pageY));
-    });
-    canvas.addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        for (let t of e.changedTouches) {
-            fireworks.push(new Firework(cw / 2, ch, t.pageX, t.pageY));
-        }
-    }, { passive: false });
-    
-    window.addEventListener('resize', function() {
-        cw = window.innerWidth;
-        ch = window.innerHeight;
-        canvas.width = cw;
-        canvas.height = ch;
-    });
-    
-    window.onload = loop;
-    </script>
-  
+}
+
+/* Animation loop */
+function animate() {
+    ctx.fillStyle="rgba(0,0,0,0.25)";
+    ctx.fillRect(0,0,W,H);
+
+    petals = petals.filter(p=>p.life>0);
+    sparkles = sparkles.filter(s=>s.life>0);
+
+    petals.forEach(p=>{p.update();p.draw();});
+    sparkles.forEach(s=>{s.update();s.draw();});
+
+    const now = performance.now();
+    if (now-lastFirework>3000) {
+        launchFirework();
+        lastFirework=now;
+    }
+
+    requestAnimationFrame(animate);
+}
+animate();
+</script>
+
 </body>
 </html>
