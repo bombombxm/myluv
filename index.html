@@ -53,214 +53,194 @@
     </style>
 </head>
 <body>
-
-    <div id="message">
-        <h1>HNY26</h1>
-        <p>I luv u naa</p>
-    </div>
-    <canvas id="canvas"></canvas>
-
     <script>
-        window.requestAnimFrame = (function() {
-            return window.requestAnimationFrame ||
-                window.webkitRequestAnimationFrame ||
-                window.mozRequestAnimationFrame ||
-                function(callback) {
-                    window.setTimeout(callback, 1000 / 60);
-                };
-        })();
-
-        var canvas = document.getElementById('canvas'),
-            ctx = canvas.getContext('2d'),
-            cw = window.innerWidth,
-            ch = window.innerHeight,
-            fireworks = [],
-            particles = [],
-            hue = 120,
-            limiterTotal = 5,
-            limiterTick = 0,
-            timerTotal = 40, // ยิงรัวขึ้นสำหรับมือถือ
-            timerTick = 0;
-
+    window.requestAnimFrame = (function() {
+        return window.requestAnimationFrame ||
+            window.webkitRequestAnimationFrame ||
+            window.mozRequestAnimationFrame ||
+            function(callback) {
+                window.setTimeout(callback, 1000 / 60);
+            };
+    })();
+    
+    var canvas = document.getElementById('canvas'),
+        ctx = canvas.getContext('2d'),
+        cw = window.innerWidth,
+        ch = window.innerHeight,
+        fireworks = [],
+        particles = [],
+        hue = 120,
+        timerTotal = 40,
+        timerTick = 0;
+    
+    canvas.width = cw;
+    canvas.height = ch;
+    
+    // Settings
+    var stopFireworks = false;
+    var duration = 60000; // 🔥 60 วินาที
+    
+    setTimeout(function() {
+        stopFireworks = true;
+    }, duration);
+    
+    function random(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+    
+    function calculateDistance(p1x, p1y, p2x, p2y) {
+        return Math.sqrt(Math.pow(p1x - p2x, 2) + Math.pow(p1y - p2y, 2));
+    }
+    
+    function Firework(sx, sy, tx, ty) {
+        this.x = sx;
+        this.y = sy;
+        this.sx = sx;
+        this.sy = sy;
+        this.tx = tx;
+        this.ty = ty;
+        this.distanceToTarget = calculateDistance(sx, sy, tx, ty);
+        this.distanceTraveled = 0;
+        this.coordinates = [];
+        this.coordinateCount = 3;
+        while (this.coordinateCount--) {
+            this.coordinates.push([this.x, this.y]);
+        }
+        this.angle = Math.atan2(ty - sy, tx - sx);
+        this.speed = 2.4;          // 🔥 ใหญ่ขึ้น
+        this.acceleration = 1.06;  // 🔥 แรงขึ้นนิด
+        this.brightness = random(55, 75);
+    }
+    
+    Firework.prototype.update = function(index) {
+        this.coordinates.pop();
+        this.coordinates.unshift([this.x, this.y]);
+    
+        this.speed *= this.acceleration;
+        var vx = Math.cos(this.angle) * this.speed,
+            vy = Math.sin(this.angle) * this.speed;
+    
+        this.distanceTraveled = calculateDistance(this.sx, this.sy, this.x + vx, this.y + vy);
+    
+        if (this.distanceTraveled >= this.distanceToTarget) {
+            createParticles(this.tx, this.ty);
+            fireworks.splice(index, 1);
+        } else {
+            this.x += vx;
+            this.y += vy;
+        }
+    };
+    
+    Firework.prototype.draw = function() {
+        ctx.beginPath();
+        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+        ctx.lineTo(this.x, this.y);
+        ctx.strokeStyle = 'hsl(' + hue + ', 100%, ' + this.brightness + '%)';
+        ctx.lineWidth = 2; // 🔥 เส้นหนาขึ้น
+        ctx.stroke();
+    };
+    
+    function Particle(x, y) {
+        this.x = x;
+        this.y = y;
+        this.coordinates = [];
+        this.coordinateCount = 5;
+        while (this.coordinateCount--) {
+            this.coordinates.push([this.x, this.y]);
+        }
+        this.angle = random(0, Math.PI * 2);
+        this.speed = random(2, 14); // 🔥 ใหญ่ขึ้น
+        this.friction = 0.94;
+        this.gravity = 1;
+        this.hue = random(hue - 40, hue + 40);
+        this.brightness = random(60, 85);
+        this.alpha = 1;
+        this.decay = random(0.012, 0.025);
+    }
+    
+    Particle.prototype.update = function(index) {
+        this.coordinates.pop();
+        this.coordinates.unshift([this.x, this.y]);
+    
+        this.speed *= this.friction;
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed + this.gravity;
+        this.alpha -= this.decay;
+    
+        if (this.alpha <= this.decay) {
+            particles.splice(index, 1);
+        }
+    };
+    
+    Particle.prototype.draw = function() {
+        ctx.beginPath();
+        ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
+        ctx.lineTo(this.x, this.y);
+        ctx.strokeStyle = 'hsla(' + this.hue + ',100%,' + this.brightness + '%,' + this.alpha + ')';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    };
+    
+    function createParticles(x, y) {
+        var particleCount = 50; // 🔥 มากขึ้น
+        while (particleCount--) {
+            particles.push(new Particle(x, y));
+        }
+    }
+    
+    function loop() {
+        requestAnimFrame(loop);
+        hue += 0.5;
+    
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.globalCompositeOperation = 'lighter';
+    
+        var i = fireworks.length;
+        while (i--) {
+            fireworks[i].draw();
+            fireworks[i].update(i);
+        }
+    
+        i = particles.length;
+        while (i--) {
+            particles[i].draw();
+            particles[i].update(i);
+        }
+    
+        if (!stopFireworks) {
+            if (timerTick >= timerTotal) {
+                fireworks.push(
+                    new Firework(cw / 2, ch, random(0, cw), random(0, ch * 0.6))
+                );
+                timerTick = 0;
+            } else {
+                timerTick++;
+            }
+        }
+    }
+    
+    // ยิงด้วย mouse / touch
+    canvas.addEventListener('mousedown', function(e) {
+        fireworks.push(new Firework(cw / 2, ch, e.pageX, e.pageY));
+    });
+    canvas.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        for (let t of e.changedTouches) {
+            fireworks.push(new Firework(cw / 2, ch, t.pageX, t.pageY));
+        }
+    }, { passive: false });
+    
+    window.addEventListener('resize', function() {
+        cw = window.innerWidth;
+        ch = window.innerHeight;
         canvas.width = cw;
         canvas.height = ch;
-
-        // Settings
-        var stopFireworks = false;
-        var duration = 20000; // 20 วินาที
-
-        setTimeout(function() {
-            stopFireworks = true;
-            document.getElementById('message').style.opacity = 1;
-        }, duration);
-
-        function random(min, max) {
-            return Math.random() * (max - min) + min;
-        }
-
-        function calculateDistance(p1x, p1y, p2x, p2y) {
-            return Math.sqrt(Math.pow(p1x - p2x, 2) + Math.pow(p1y - p2y, 2));
-        }
-
-        function Firework(sx, sy, tx, ty) {
-            this.x = sx;
-            this.y = sy;
-            this.sx = sx;
-            this.sy = sy;
-            this.tx = tx;
-            this.ty = ty;
-            this.distanceToTarget = calculateDistance(sx, sy, tx, ty);
-            this.distanceTraveled = 0;
-            this.coordinates = [];
-            this.coordinateCount = 3;
-            while (this.coordinateCount--) {
-                this.coordinates.push([this.x, this.y]);
-            }
-            this.angle = Math.atan2(ty - sy, tx - sx);
-            this.speed = 2;
-            this.acceleration = 1.05;
-            this.brightness = random(50, 70);
-            this.targetRadius = 1;
-        }
-
-        Firework.prototype.update = function(index) {
-            this.coordinates.pop();
-            this.coordinates.unshift([this.x, this.y]);
-
-            if (this.targetRadius < 8) this.targetRadius += 0.3;
-            else this.targetRadius = 1;
-
-            this.speed *= this.acceleration;
-            var vx = Math.cos(this.angle) * this.speed,
-                vy = Math.sin(this.angle) * this.speed;
-            
-            this.distanceTraveled = calculateDistance(this.sx, this.sy, this.x + vx, this.y + vy);
-
-            if (this.distanceTraveled >= this.distanceToTarget) {
-                createParticles(this.tx, this.ty);
-                fireworks.splice(index, 1);
-            } else {
-                this.x += vx;
-                this.y += vy;
-            }
-        }
-
-        Firework.prototype.draw = function() {
-            ctx.beginPath();
-            ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
-            ctx.lineTo(this.x, this.y);
-            ctx.strokeStyle = 'hsl(' + hue + ', 100%, ' + this.brightness + '%)';
-            ctx.stroke();
-        }
-
-        function Particle(x, y) {
-            this.x = x;
-            this.y = y;
-            this.coordinates = [];
-            this.coordinateCount = 5;
-            while (this.coordinateCount--) {
-                this.coordinates.push([this.x, this.y]);
-            }
-            this.angle = random(0, Math.PI * 2);
-            this.speed = random(1, 10);
-            this.friction = 0.95;
-            this.gravity = 1;
-            this.hue = random(hue - 50, hue + 50);
-            this.brightness = random(50, 80);
-            this.alpha = 1;
-            this.decay = random(0.015, 0.03);
-        }
-
-        Particle.prototype.update = function(index) {
-            this.coordinates.pop();
-            this.coordinates.unshift([this.x, this.y]);
-            this.speed *= this.friction;
-            this.x += Math.cos(this.angle) * this.speed;
-            this.y += Math.sin(this.angle) * this.speed + this.gravity;
-            this.alpha -= this.decay;
-
-            if (this.alpha <= this.decay) particles.splice(index, 1);
-        }
-
-        Particle.prototype.draw = function() {
-            ctx.beginPath();
-            ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
-            ctx.lineTo(this.x, this.y);
-            ctx.strokeStyle = 'hsla(' + this.hue + ', 100%, ' + this.brightness + '%, ' + this.alpha + ')';
-            ctx.stroke();
-        }
-
-        function createParticles(x, y) {
-            var particleCount = 30;
-            while (particleCount--) {
-                particles.push(new Particle(x, y));
-            }
-        }
-
-        function loop() {
-            requestAnimFrame(loop);
-            hue += 0.5; // เปลี่ยนสีไปเรื่อยๆ
-
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(0, 0, cw, ch);
-            ctx.globalCompositeOperation = 'lighter';
-
-            var i = fireworks.length;
-            while (i--) {
-                fireworks[i].draw();
-                fireworks[i].update(i);
-            }
-
-            var i = particles.length;
-            while (i--) {
-                particles[i].draw();
-                particles[i].update(i);
-            }
-
-            if (!stopFireworks) {
-                if (timerTick >= timerTotal) {
-                    fireworks.push(new Firework(cw / 2, ch, random(0, cw), random(0, ch / 2)));
-                    timerTick = 0;
-                } else {
-                    timerTick++;
-                }
-            }
-        }
-
-        // Event Listeners สำหรับ Mobile และ Mouse
-        function handleInput(e) {
-            e.preventDefault(); // ป้องกันการ Scroll จอ
-            if(stopFireworks) return; 
-
-            var clientX, clientY;
-            
-            if(e.type === 'touchstart') {
-                 // ยิงพลุหลายลูกตามนิ้วที่แตะ
-                for (var i = 0; i < e.changedTouches.length; i++) {
-                    clientX = e.changedTouches[i].pageX;
-                    clientY = e.changedTouches[i].pageY;
-                    fireworks.push(new Firework(cw / 2, ch, clientX, clientY));
-                }
-            } else {
-                clientX = e.pageX;
-                clientY = e.pageY;
-                fireworks.push(new Firework(cw / 2, ch, clientX, clientY));
-            }
-        }
-
-        canvas.addEventListener('mousedown', handleInput);
-        canvas.addEventListener('touchstart', handleInput, {passive: false});
-
-        // ปรับขนาด Canvas เมื่อหมุนหน้าจอ
-        window.addEventListener('resize', function() {
-            cw = window.innerWidth;
-            ch = window.innerHeight;
-            canvas.width = cw;
-            canvas.height = ch;
-        });
-
-        window.onload = loop;
+    });
+    
+    window.onload = loop;
     </script>
+  
 </body>
 </html>
