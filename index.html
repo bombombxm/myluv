@@ -1,51 +1,91 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Japanese Fireworks</title>
 
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: radial-gradient(circle at bottom, #020617, #000);
-    overflow: hidden;
-    height: 100%;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at bottom, #020617, #000);
+  overflow: hidden;
+  height: 100%;
+}
 
-  canvas {
-    display: block;
-  }
+canvas {
+  display: none;
+}
+
+#orientationWarning {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 20px;
+}
 </style>
 </head>
 <body>
+
+<div id="orientationWarning">
+  📱 กรุณาหมุนหน้าจอเป็นแนวตั้ง<br>
+  เพื่อเริ่มการแสดงดอกไม้ไฟ 🎆
+</div>
 
 <canvas id="canvas"></canvas>
 
 <script>
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const warning = document.getElementById("orientationWarning");
+
+let running = false;
+let startTime = 0;
 
 function resize() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 }
-resize();
-window.addEventListener("resize", resize);
+
+function checkOrientation() {
+  if (window.innerHeight >= window.innerWidth) {
+    warning.style.display = "none";
+    canvas.style.display = "block";
+    resize();
+    if (!running) startShow();
+  } else {
+    warning.style.display = "flex";
+    canvas.style.display = "none";
+    running = false;
+  }
+}
+
+window.addEventListener("resize", checkOrientation);
+window.addEventListener("orientationchange", checkOrientation);
+
+checkOrientation();
+
+/* ---------------- Fireworks Logic ---------------- */
 
 const gravity = 0.04;
 const fireworks = [];
 const particles = [];
+const MAX_RADIUS = Math.min(window.innerWidth, window.innerHeight) * 0.35;
 
 class Firework {
   constructor() {
-    this.x = Math.random() * canvas.width;
+    this.x = canvas.width / 2 + (Math.random() - 0.5) * 100;
     this.y = canvas.height;
-    this.targetY = canvas.height * (0.2 + Math.random() * 0.4);
-    this.speed = 7 + Math.random() * 3;
+    this.targetY = canvas.height * (0.25 + Math.random() * 0.2);
+    this.speed = 8;
     this.exploded = false;
-    this.color = `hsl(${Math.random() * 360},100%,60%)`;
   }
 
   update() {
@@ -59,46 +99,51 @@ class Firework {
   draw() {
     ctx.beginPath();
     ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
-    ctx.fillStyle = this.color;
+    ctx.fillStyle = "#fff";
     ctx.fill();
   }
 
   explode() {
-    const layers = 3 + Math.floor(Math.random() * 3); // Japanese style
-    for (let l = 1; l <= layers; l++) {
-      const count = 60 + l * 30;
-      for (let i = 0; i < count; i++) {
-        particles.push(
-          new Particle(
-            this.x,
-            this.y,
-            (Math.PI * 2 * i) / count,
-            this.color,
-            l
-          )
-        );
-      }
+    const colors = [
+      "hsl(0,100%,60%)",
+      "hsl(45,100%,60%)",
+      "hsl(120,100%,60%)",
+      "hsl(200,100%,60%)",
+      "hsl(280,100%,65%)"
+    ];
+
+    const count = 220;
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      const color = colors[i % colors.length];
+      particles.push(
+        new Particle(this.x, this.y, angle, color)
+      );
     }
   }
 }
 
 class Particle {
-  constructor(x, y, angle, color, layer) {
+  constructor(x, y, angle, color) {
     this.x = x;
     this.y = y;
     this.angle = angle;
-    this.speed = (Math.random() * 2 + 1) * layer;
+    this.speed = Math.random() * 2 + 2;
     this.radius = 2;
-    this.life = 100 + layer * 30;
+    this.life = 120;
     this.color = color;
     this.alpha = 1;
+    this.distance = 0;
   }
 
   update() {
-    this.x += Math.cos(this.angle) * this.speed;
-    this.y += Math.sin(this.angle) * this.speed + gravity;
+    if (this.distance < MAX_RADIUS) {
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed + gravity;
+      this.distance += this.speed;
+    }
     this.life--;
-    this.alpha = this.life / 150;
+    this.alpha = this.life / 120;
   }
 
   draw() {
@@ -113,16 +158,17 @@ class Particle {
 }
 
 let lastLaunch = 0;
-const loopDuration = 60000; // 1 นาที
-let startTime = Date.now();
+const LOOP_TIME = 60000;
 
 function animate() {
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  if (!running) return;
+
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const now = Date.now();
 
-  if (now - lastLaunch > 900) {
+  if (now - lastLaunch > 2000) {
     fireworks.push(new Firework());
     lastLaunch = now;
   }
@@ -139,8 +185,7 @@ function animate() {
     if (particles[i].life <= 0) particles.splice(i, 1);
   }
 
-  // Loop reset ทุก 1 นาที
-  if (now - startTime > loopDuration) {
+  if (now - startTime > LOOP_TIME) {
     fireworks.length = 0;
     particles.length = 0;
     startTime = now;
@@ -149,7 +194,11 @@ function animate() {
   requestAnimationFrame(animate);
 }
 
-animate();
+function startShow() {
+  running = true;
+  startTime = Date.now();
+  animate();
+}
 </script>
 
 </body>
