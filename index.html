@@ -2,18 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4u</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>HNY26 For You</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             background: #000;
-            overflow: hidden;
+            overflow: hidden; /* ป้องกัน Scrollbar */
             font-family: 'Arial', sans-serif;
+            touch-action: none; /* ปิดการทำงานสัมผัสของ Browser เพื่อให้จิ้มจุดพลุได้ */
         }
         canvas {
             display: block;
+            cursor: crosshair;
         }
         #message {
             position: absolute;
@@ -25,24 +27,28 @@
             transition: opacity 3s ease-in;
             z-index: 10;
             pointer-events: none;
+            width: 90%; /* ให้ข้อความไม่ล้นจอในมือถือ */
         }
         h1 {
             color: #fff;
-            font-size: 4rem;
+            font-size: 15vw; /* ปรับขนาดตามความกว้างจอ */
             margin: 0;
+            line-height: 1.1;
             text-transform: uppercase;
-            text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de, 0 0 40px #ff00de, 0 0 80px #ff00de;
+            text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de, 0 0 40px #ff00de;
         }
         p {
             color: #ffd700;
-            font-size: 2rem;
-            margin-top: 10px;
+            font-size: 8vw; /* ปรับขนาดตามความกว้างจอ */
+            margin-top: 20px;
+            font-weight: bold;
             text-shadow: 0 0 5px #ffd700, 0 0 10px #ffd700;
         }
-        /* Mobile adjustment */
-        @media (max-width: 600px) {
-            h1 { font-size: 2.5rem; }
-            p { font-size: 1.5rem; }
+        
+        /* ถ้าเป็น iPad หรือจอใหญ่ ให้จำกัดขนาดตัวอักษรไม่ให้ใหญ่เกินไป */
+        @media (min-width: 768px) {
+            h1 { font-size: 5rem; }
+            p { font-size: 2.5rem; }
         }
     </style>
 </head>
@@ -73,11 +79,8 @@
             hue = 120,
             limiterTotal = 5,
             limiterTick = 0,
-            timerTotal = 80,
-            timerTick = 0,
-            mousedown = false,
-            mx,
-            my;
+            timerTotal = 40, // ยิงรัวขึ้นสำหรับมือถือ
+            timerTick = 0;
 
         canvas.width = cw;
         canvas.height = ch;
@@ -96,9 +99,7 @@
         }
 
         function calculateDistance(p1x, p1y, p2x, p2y) {
-            var xDistance = p1x - p2x,
-                yDistance = p1y - p2y;
-            return Math.sqrt(Math.pow(xDistance, 2) + Math.pow(yDistance, 2));
+            return Math.sqrt(Math.pow(p1x - p2x, 2) + Math.pow(p1y - p2y, 2));
         }
 
         function Firework(sx, sy, tx, ty) {
@@ -126,16 +127,13 @@
             this.coordinates.pop();
             this.coordinates.unshift([this.x, this.y]);
 
-            if (this.targetRadius < 8) {
-                this.targetRadius += 0.3;
-            } else {
-                this.targetRadius = 1;
-            }
+            if (this.targetRadius < 8) this.targetRadius += 0.3;
+            else this.targetRadius = 1;
 
             this.speed *= this.acceleration;
-
             var vx = Math.cos(this.angle) * this.speed,
                 vy = Math.sin(this.angle) * this.speed;
+            
             this.distanceTraveled = calculateDistance(this.sx, this.sy, this.x + vx, this.y + vy);
 
             if (this.distanceTraveled >= this.distanceToTarget) {
@@ -152,10 +150,6 @@
             ctx.moveTo(this.coordinates[this.coordinates.length - 1][0], this.coordinates[this.coordinates.length - 1][1]);
             ctx.lineTo(this.x, this.y);
             ctx.strokeStyle = 'hsl(' + hue + ', 100%, ' + this.brightness + '%)';
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.arc(this.tx, this.ty, this.targetRadius, 0, Math.PI * 2);
             ctx.stroke();
         }
 
@@ -185,9 +179,7 @@
             this.y += Math.sin(this.angle) * this.speed + this.gravity;
             this.alpha -= this.decay;
 
-            if (this.alpha <= this.decay) {
-                particles.splice(index, 1);
-            }
+            if (this.alpha <= this.decay) particles.splice(index, 1);
         }
 
         Particle.prototype.draw = function() {
@@ -207,8 +199,8 @@
 
         function loop() {
             requestAnimFrame(loop);
-            hue = random(0, 360);
-            
+            hue += 0.5; // เปลี่ยนสีไปเรื่อยๆ
+
             ctx.globalCompositeOperation = 'destination-out';
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(0, 0, cw, ch);
@@ -233,16 +225,40 @@
                 } else {
                     timerTick++;
                 }
-                
-                // เพิ่มพลุพิเศษให้ดูอลังการ
-                if(limiterTick >= limiterTotal) {
-                     fireworks.push(new Firework(cw / 2, ch, random(0, cw), random(0, ch / 2)));
-                     limiterTick = 0;
-                } else {
-                    limiterTick++;
-                }
             }
         }
+
+        // Event Listeners สำหรับ Mobile และ Mouse
+        function handleInput(e) {
+            e.preventDefault(); // ป้องกันการ Scroll จอ
+            if(stopFireworks) return; 
+
+            var clientX, clientY;
+            
+            if(e.type === 'touchstart') {
+                 // ยิงพลุหลายลูกตามนิ้วที่แตะ
+                for (var i = 0; i < e.changedTouches.length; i++) {
+                    clientX = e.changedTouches[i].pageX;
+                    clientY = e.changedTouches[i].pageY;
+                    fireworks.push(new Firework(cw / 2, ch, clientX, clientY));
+                }
+            } else {
+                clientX = e.pageX;
+                clientY = e.pageY;
+                fireworks.push(new Firework(cw / 2, ch, clientX, clientY));
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleInput);
+        canvas.addEventListener('touchstart', handleInput, {passive: false});
+
+        // ปรับขนาด Canvas เมื่อหมุนหน้าจอ
+        window.addEventListener('resize', function() {
+            cw = window.innerWidth;
+            ch = window.innerHeight;
+            canvas.width = cw;
+            canvas.height = ch;
+        });
 
         window.onload = loop;
     </script>
